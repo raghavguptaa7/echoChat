@@ -5,9 +5,35 @@ from app.database import SessionLocal
 from app.parser import parse_chat
 from app.services.chat_service import save_chat
 
+from fastapi import APIRouter, UploadFile, File, HTTPException
+from sqlalchemy.orm import Session
+
+from app.database import SessionLocal
+from app.models import Chat
+from app.parser import parse_chat
+from app.schemas.chat import MessageResponse
+from app.services.chat_service import save_chat
+
+
 router = APIRouter(prefix="/api/chats", tags=["Chats"])
 
+@router.get("/{chat_id}/messages", response_model=list[MessageResponse])
+def get_chat_messages(chat_id: int):
+    db: Session = SessionLocal()
 
+    try:
+        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        return chat.messages
+
+    finally:
+        db.close()
 @router.post("/upload")
 async def upload_chat(file: UploadFile = File(...)):
     if not file.filename.endswith(".txt"):
