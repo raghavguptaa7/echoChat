@@ -1,12 +1,13 @@
 from fastapi import FastAPI, UploadFile, File, HTTPException
 from app.parser import parse_chat
-
+from app.database import engine
+from app.models import Base
 app = FastAPI(
     title="EchoChat API",
     description="Chat with AI personas built from conversation history",
     version="0.1.0"
 )
-
+Base.metadata.create_all(bind=engine)
 
 @app.get("/health")
 def health_check():
