@@ -16,6 +16,12 @@ class Chat(Base):
         cascade="all, delete-orphan"
     )
 
+    chunks = relationship(
+        "ConversationChunk",
+        back_populates="chat",
+        cascade="all, delete-orphan"
+    )
+
 
 class Message(Base):
     __tablename__ = "messages"
@@ -29,4 +35,18 @@ class Message(Base):
     chat = relationship(
         "Chat",
         back_populates="messages"
+    )
+
+
+class ConversationChunk(Base):
+    __tablename__ = "conversation_chunks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
+    chunk_index = Column(Integer, nullable=False)
+    content = Column(Text, nullable=False)
+
+    chat = relationship(
+        "Chat",
+        back_populates="chunks"
     )

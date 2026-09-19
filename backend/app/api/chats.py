@@ -2,20 +2,15 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.parser import parse_chat
-from app.services.chat_service import save_chat
-
-from fastapi import APIRouter, UploadFile, File, HTTPException
-from sqlalchemy.orm import Session
-
-from app.database import SessionLocal
-from app.models import Chat
+from app.models import Chat, Message
 from app.parser import parse_chat
 from app.schemas.chat import MessageResponse
 from app.services.chat_service import save_chat
+from app.services.chunk_service import create_chunks
 
 
 router = APIRouter(prefix="/api/chats", tags=["Chats"])
+
 
 @router.get("/{chat_id}/messages", response_model=list[MessageResponse])
 def get_chat_messages(chat_id: int):
@@ -34,6 +29,8 @@ def get_chat_messages(chat_id: int):
 
     finally:
         db.close()
+
+
 @router.post("/upload")
 async def upload_chat(file: UploadFile = File(...)):
     if not file.filename.endswith(".txt"):
@@ -69,10 +66,24 @@ async def upload_chat(file: UploadFile = File(...)):
             messages
         )
 
+        db_messages = (
+            db.query(Message)
+            .filter(Message.chat_id == chat.id)
+            .order_by(Message.id)
+            .all()
+        )
+
+        chunks = create_chunks(
+            db,
+            chat.id,
+            db_messages
+        )
+
         return {
             "chat_id": chat.id,
             "filename": chat.filename,
-            "message_count": len(messages)
+            "message_count": len(messages),
+            "chunk_count": len(chunks)
         }
 
     except Exception:
