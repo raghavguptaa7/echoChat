@@ -7,7 +7,7 @@ from app.parser import parse_chat
 from app.schemas.chat import MessageResponse
 from app.services.chat_service import save_chat
 from app.services.chunk_service import create_chunks
-
+from app.services.search_service import search_chunks
 
 router = APIRouter(prefix="/api/chats", tags=["Chats"])
 
@@ -93,6 +93,42 @@ async def upload_chat(file: UploadFile = File(...)):
             status_code=500,
             detail="Failed to save chat"
         )
+
+    finally:
+        db.close()
+        
+@router.get("/{chat_id}/search")
+def search_chat(
+    chat_id: int,
+    query: str,
+    limit: int = 5
+):
+    db: Session = SessionLocal()
+
+    try:
+        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        results = search_chunks(
+            db,
+            chat_id,
+            query,
+            limit
+        )
+
+        return [
+            {
+                "chunk_id": chunk.id,
+                "chunk_index": chunk.chunk_index,
+                "content": chunk.content
+            }
+            for chunk in results
+        ]
 
     finally:
         db.close()

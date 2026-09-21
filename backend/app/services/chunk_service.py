@@ -1,6 +1,7 @@
 from sqlalchemy.orm import Session
 
 from app.models import ConversationChunk
+from app.services.embedding_service import generate_embedding
 
 
 def create_chunks(
@@ -19,10 +20,13 @@ def create_chunks(
             for message in batch
         )
 
+        embedding = generate_embedding(content)
+
         chunk = ConversationChunk(
             chat_id=chat_id,
             chunk_index=len(chunks),
-            content=content
+            content=content,
+            embedding=embedding
         )
 
         db.add(chunk)

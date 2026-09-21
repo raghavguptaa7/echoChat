@@ -1,6 +1,6 @@
 from sqlalchemy import Column, Integer, String, Text, DateTime, ForeignKey
 from sqlalchemy.orm import relationship
-
+from pgvector.sqlalchemy import Vector
 from app.database import Base
 
 
@@ -45,6 +45,7 @@ class ConversationChunk(Base):
     chat_id = Column(Integer, ForeignKey("chats.id"), nullable=False)
     chunk_index = Column(Integer, nullable=False)
     content = Column(Text, nullable=False)
+    embedding = Column(Vector(384), nullable=True)
 
     chat = relationship(
         "Chat",
