@@ -10,6 +10,13 @@ from app.services.chunk_service import create_chunks
 from app.services.search_service import search_chunks
 from app.services.llm_service import generate_response
 from app.services.persona_service import create_persona
+from app.services.session_service import create_session
+from app.models import Chat, Message, Persona, ChatSession
+from app.services.session_service import (
+    create_session,
+    add_message,
+    get_session_messages
+)
 router = APIRouter(prefix="/api/chats", tags=["Chats"])
 
 
@@ -139,6 +146,7 @@ def search_chat(
 def ask_chat(
     chat_id: int,
     query: str,
+    session_id: int,
     limit: int = 5
 ):
     db: Session = SessionLocal()
@@ -156,18 +164,27 @@ def ask_chat(
                 detail="Chat not found"
             )
 
+        session = (
+            db.query(ChatSession)
+            .filter(
+                ChatSession.id == session_id,
+                ChatSession.chat_id == chat_id
+            )
+            .first()
+        )
+
+        if not session:
+            raise HTTPException(
+                status_code=404,
+                detail="Session not found"
+            )
+
         results = search_chunks(
             db,
             chat_id,
             query,
             limit
         )
-
-        if not results:
-            return {
-                "answer": "I couldn't find enough relevant conversation context to answer that.",
-                "sources": []
-            }
 
         persona = (
             db.query(Persona)
@@ -185,14 +202,40 @@ def ask_chat(
             for result in results
         )
 
+        previous_messages = get_session_messages(
+            db,
+            session_id
+        )
+
+        conversation_history = "\n".join(
+            f"{message.role}: {message.content}"
+            for message in previous_messages
+        )
+
         answer = generate_response(
             context=context,
             query=query,
-            persona_profile=persona_profile
+            persona_profile=persona_profile,
+            conversation_history=conversation_history
+        )
+
+        add_message(
+            db,
+            session_id,
+            "user",
+            query
+        )
+
+        add_message(
+            db,
+            session_id,
+            "assistant",
+            answer
         )
 
         return {
             "answer": answer,
+            "session_id": session_id,
             "sources": [
                 {
                     "chunk_id": result["chunk"].id,
@@ -233,3 +276,33 @@ def generate_chat_persona(chat_id: int):
 
     finally:
         db.close()    
+        
+@router.post("/{chat_id}/sessions")
+def create_chat_session(chat_id: int):
+    db: Session = SessionLocal()
+
+    try:
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        session = create_session(
+            db,
+            chat_id
+        )
+
+        return {
+            "session_id": session.id,
+            "chat_id": chat_id
+        }
+
+    finally:
+        db.close()

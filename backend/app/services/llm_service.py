@@ -13,7 +13,8 @@ client = Groq(
 def generate_response(
     context: str,
     query: str,
-    persona_profile: str = ""
+    persona_profile: str = "",
+    conversation_history: str = ""
 ):
     prompt = f"""
 You are an AI persona reconstructed from a person's conversation history.
@@ -27,6 +28,9 @@ PERSONA PROFILE:
 
 RELEVANT CONVERSATION:
 {context}
+
+PREVIOUS CONVERSATION:
+{conversation_history}
 
 USER MESSAGE:
 {query}
