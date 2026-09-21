@@ -36,13 +36,17 @@ def add_message(
 
 def get_session_messages(
     db: Session,
-    session_id: int
+    session_id: int,
+    limit: int = 10
 ):
-    return (
+    messages = (
         db.query(SessionMessage)
         .filter(
             SessionMessage.session_id == session_id
         )
-        .order_by(SessionMessage.created_at)
+        .order_by(SessionMessage.created_at.desc())
+        .limit(limit)
         .all()
     )
+
+    return list(reversed(messages))

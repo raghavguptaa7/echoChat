@@ -203,9 +203,10 @@ def ask_chat(
         )
 
         previous_messages = get_session_messages(
-            db,
-            session_id
-        )
+        db,
+        session_id,
+        limit=10
+       )
 
         conversation_history = "\n".join(
             f"{message.role}: {message.content}"
