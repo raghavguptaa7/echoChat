@@ -8,7 +8,8 @@ from app.schemas.chat import MessageResponse
 from app.services.chat_service import save_chat
 from app.services.chunk_service import create_chunks
 from app.services.search_service import search_chunks
-
+from app.services.llm_service import generate_response
+from app.services.persona_service import create_persona
 router = APIRouter(prefix="/api/chats", tags=["Chats"])
 
 
@@ -123,12 +124,92 @@ def search_chat(
 
         return [
             {
-                "chunk_id": chunk.id,
-                "chunk_index": chunk.chunk_index,
-                "content": chunk.content
+                "chunk_id": result["chunk"].id,
+                "chunk_index": result["chunk"].chunk_index,
+                "similarity": round(result["similarity"], 4),
+                "content": result["chunk"].content
             }
-            for chunk in results
+            for result in results
         ]
 
     finally:
         db.close()
+@router.post("/{chat_id}/ask")
+def ask_chat(
+    chat_id: int,
+    query: str,
+    limit: int = 5
+):
+    db: Session = SessionLocal()
+
+    try:
+        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        results = search_chunks(
+            db,
+            chat_id,
+            query,
+            limit
+        )
+
+        if not results:
+            return {
+                "answer": "I couldn't find enough relevant conversation context to answer that.",
+                "sources": []
+            }
+
+        context = "\n\n".join(
+            result["chunk"].content
+            for result in results
+        )
+
+        answer = generate_response(
+            context,
+            query
+        )
+
+        return {
+            "answer": answer,
+            "sources": [
+                {
+                    "chunk_id": result["chunk"].id,
+                    "similarity": round(result["similarity"], 4)
+                }
+                for result in results
+            ]
+        }
+
+    finally:
+        db.close()    
+        
+@router.post("/{chat_id}/persona")
+def generate_chat_persona(chat_id: int):
+    db: Session = SessionLocal()
+
+    try:
+        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        persona = create_persona(
+            db,
+            chat_id
+        )
+
+        return {
+            "chat_id": chat_id,
+            "profile": persona.profile
+        }
+
+    finally:
+        db.close()    

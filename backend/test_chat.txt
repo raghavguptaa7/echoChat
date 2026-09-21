@@ -1,0 +1,43 @@
+18/09/26, 10:00 AM - Aman: bhai kal college jaana hai?
+18/09/26, 10:01 AM - Raghav: haan bro morning mein class hai
+18/09/26, 10:02 AM - Aman: assignment complete kiya?
+18/09/26, 10:03 AM - Raghav: almost ho gaya
+18/09/26, 10:04 AM - Aman: professor ne deadline kya batayi?
+18/09/26, 10:05 AM - Raghav: friday tak submit karna hai
+18/09/26, 10:06 AM - Aman: library mein milte hain?
+18/09/26, 10:07 AM - Raghav: haan lunch ke baad milte hain
+18/09/26, 10:08 AM - Aman: attendance bhi check kar lena
+18/09/26, 10:09 AM - Raghav: okay bro
+
+18/09/26, 2:00 PM - Aman: bhai aaj coding kar raha hai?
+18/09/26, 2:01 PM - Raghav: haan leetcode ke questions solve kar raha
+18/09/26, 2:02 PM - Aman: sliding window wala question hua?
+18/09/26, 2:03 PM - Raghav: haan uska approach samajh aa gaya
+18/09/26, 2:04 PM - Aman: time complexity kya hai?
+18/09/26, 2:05 PM - Raghav: mostly O(n) mein ho raha hai
+18/09/26, 2:06 PM - Aman: codeforces contest kab hai?
+18/09/26, 2:07 PM - Raghav: weekend pe hai
+18/09/26, 2:08 PM - Aman: rating improve karni hai?
+18/09/26, 2:09 PM - Raghav: haan specialist se upar jaana hai
+
+18/09/26, 5:00 PM - Aman: football match dekha?
+18/09/26, 5:01 PM - Raghav: haan bhai kya match tha
+18/09/26, 5:02 PM - Aman: goalkeeper ne amazing saves kiye
+18/09/26, 5:03 PM - Raghav: defence bhi solid tha
+18/09/26, 5:04 PM - Aman: tera favourite player kaun hai?
+18/09/26, 5:05 PM - Raghav: Mbappe mujhe kaafi pasand hai
+18/09/26, 5:06 PM - Aman: next match kab hai?
+18/09/26, 5:07 PM - Raghav: sunday ko hai
+18/09/26, 5:08 PM - Aman: dekhne ke liye ready?
+18/09/26, 5:09 PM - Raghav: obviously bro
+
+18/09/26, 8:00 PM - Aman: exams ki preparation kaisi chal rahi?
+18/09/26, 8:01 PM - Raghav: maths kaafi tough lag raha hai
+18/09/26, 8:02 PM - Aman: probability revise ki?
+18/09/26, 8:03 PM - Raghav: haan probability aur statistics kar raha
+18/09/26, 8:04 PM - Aman: calculus bhi kar lena
+18/09/26, 8:05 PM - Raghav: calculus kal start karunga
+18/09/26, 8:06 PM - Aman: koi important topics hain?
+18/09/26, 8:07 PM - Raghav: integration aur differential equations
+18/09/26, 8:08 PM - Aman: all the best bhai
+18/09/26, 8:09 PM - Raghav: thanks bro

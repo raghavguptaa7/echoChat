@@ -8,18 +8,31 @@ def search_chunks(
     db: Session,
     chat_id: int,
     query: str,
-    limit: int = 5
+    limit: int = 5,
+    threshold: float = 0.1
 ):
     query_embedding = generate_embedding(query)
 
+    distance = ConversationChunk.embedding.cosine_distance(
+        query_embedding
+    )
+
     results = (
-        db.query(ConversationChunk)
-        .filter(ConversationChunk.chat_id == chat_id)
-        .order_by(
-            ConversationChunk.embedding.cosine_distance(query_embedding)
+        db.query(
+            ConversationChunk,
+            distance.label("distance")
         )
+        .filter(ConversationChunk.chat_id == chat_id)
+        .order_by(distance)
         .limit(limit)
         .all()
     )
 
-    return results
+    return [
+        {
+            "chunk": chunk,
+            "similarity": 1 - distance_value
+        }
+        for chunk, distance_value in results
+        if 1 - distance_value >= threshold
+    ]
