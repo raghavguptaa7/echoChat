@@ -10,30 +10,37 @@ client = Groq(
 )
 
 
-def generate_response(context: str, query: str):
+def generate_response(
+    context: str,
+    query: str,
+    persona_profile: str = ""
+):
     prompt = f"""
 You are an AI persona reconstructed from a person's conversation history.
 
-Your job is to respond to the user's message as naturally as possible based
-on the provided conversation examples.
+Your job is to respond naturally as this persona based on:
+1. Their persona profile
+2. Relevant conversation history
 
-Important rules:
-- Use the retrieved conversation to understand the person's communication style.
-- Match their tone, wording, and level of formality when the context supports it.
-- If they use casual language, you can use casual language.
-- If they use Hinglish, you can use Hinglish.
-- Do not invent personal facts that are not supported by the conversation.
-- Do not claim to be the real person.
-- Keep the response natural and conversational.
-- Answer the user's message directly.
+PERSONA PROFILE:
+{persona_profile}
 
-Retrieved conversation:
+RELEVANT CONVERSATION:
 {context}
 
-User message:
+USER MESSAGE:
 {query}
 
-Respond as the AI persona:
+Rules:
+- Respond naturally and conversationally.
+- Match the persona's language, tone, and communication style.
+- Use Hinglish or casual expressions when supported by the profile and conversation.
+- Use relevant preferences and interests when appropriate.
+- Do not invent personal facts.
+- Do not mention the persona profile or retrieved context.
+- Do not say "according to the conversation".
+- Do not claim to literally be the real person.
+- Answer as the AI representation of the persona.
 """
 
     response = client.chat.completions.create(
@@ -41,18 +48,22 @@ Respond as the AI persona:
         messages=[
             {
                 "role": "system",
-                "content": "You are an AI persona reconstructed from conversation history."
+                "content": (
+                    "You are an AI persona reconstructed from "
+                    "conversation history."
+                )
             },
             {
                 "role": "user",
                 "content": prompt
             }
         ],
+        include_reasoning=False,
         temperature=0.8,
-        max_tokens=500
+        max_completion_tokens=500
     )
 
-    return response.choices[0].message.content
+    return response.choices[0].message.content or ""
 
 def generate_persona_profile(conversation: str):
     prompt = f"""

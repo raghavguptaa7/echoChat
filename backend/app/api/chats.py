@@ -2,7 +2,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import Chat, Message
+from app.models import Chat, Message,Persona
 from app.parser import parse_chat
 from app.schemas.chat import MessageResponse
 from app.services.chat_service import save_chat
@@ -134,6 +134,7 @@ def search_chat(
 
     finally:
         db.close()
+
 @router.post("/{chat_id}/ask")
 def ask_chat(
     chat_id: int,
@@ -143,7 +144,11 @@ def ask_chat(
     db: Session = SessionLocal()
 
     try:
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
 
         if not chat:
             raise HTTPException(
@@ -164,14 +169,26 @@ def ask_chat(
                 "sources": []
             }
 
+        persona = (
+            db.query(Persona)
+            .filter(Persona.chat_id == chat_id)
+            .first()
+        )
+
+        persona_profile = ""
+
+        if persona:
+            persona_profile = persona.profile
+
         context = "\n\n".join(
             result["chunk"].content
             for result in results
         )
 
         answer = generate_response(
-            context,
-            query
+            context=context,
+            query=query,
+            persona_profile=persona_profile
         )
 
         return {
@@ -179,14 +196,17 @@ def ask_chat(
             "sources": [
                 {
                     "chunk_id": result["chunk"].id,
-                    "similarity": round(result["similarity"], 4)
+                    "similarity": round(
+                        result["similarity"],
+                        4
+                    )
                 }
                 for result in results
             ]
         }
 
     finally:
-        db.close()    
+        db.close()   
         
 @router.post("/{chat_id}/persona")
 def generate_chat_persona(chat_id: int):
