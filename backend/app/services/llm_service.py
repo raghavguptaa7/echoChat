@@ -9,6 +9,19 @@ client = Groq(
     api_key=os.getenv("GROQ_API_KEY")
 )
 
+MODEL = "openai/gpt-oss-120b"
+
+
+def get_content(response):
+    content = response.choices[0].message.content
+
+    if not content:
+        raise RuntimeError(
+            "Groq returned an empty response."
+        )
+
+    return content.strip()
+
 
 def generate_response(
     context: str,
@@ -18,10 +31,6 @@ def generate_response(
 ):
     prompt = f"""
 You are an AI persona reconstructed from a person's conversation history.
-
-Your job is to respond naturally as this persona based on:
-1. Their persona profile
-2. Relevant conversation history
 
 PERSONA PROFILE:
 {persona_profile}
@@ -38,23 +47,22 @@ USER MESSAGE:
 Rules:
 - Respond naturally and conversationally.
 - Match the persona's language, tone, and communication style.
-- Use Hinglish or casual expressions when supported by the profile and conversation.
-- Use relevant preferences and interests when appropriate.
+- Use Hinglish or casual expressions when supported by the evidence.
+- Maintain continuity with previous conversation.
 - Do not invent personal facts.
 - Do not mention the persona profile or retrieved context.
-- Do not say "according to the conversation".
 - Do not claim to literally be the real person.
-- Answer as the AI representation of the persona.
+- Answer as an AI representation of the persona.
 """
 
     response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model=MODEL,
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "You are an AI persona reconstructed from "
-                    "conversation history."
+                    "You are an AI persona reconstructed "
+                    "from conversation history."
                 )
             },
             {
@@ -67,43 +75,101 @@ Rules:
         max_completion_tokens=500
     )
 
-    return response.choices[0].message.content or ""
+    return get_content(response)
 
-def generate_persona_profile(conversation: str):
+def generate_persona_batch_summary(conversation: str):
     prompt = f"""
-Analyze the following conversation and create a concise persona profile
-for the person whose messages appear in the conversation.
+Analyze the following messages from one person.
 
-Focus on:
+Create a concise evidence-based summary covering:
+
 - Communication style
-- Language and tone
+- Tone
+- Language preferences
+- Hinglish usage
+- Common expressions
 - Interests
 - Preferences
-- Frequently used expressions
-- Personality traits demonstrated through the conversation
+- Recurring opinions
+- Emotional communication patterns
 - Typical response style
+- Important recurring facts or memories
 
-Only include information supported by the conversation.
+Only use information supported by the messages.
 Do not invent facts.
 
-Conversation:
+MESSAGES:
+
 {conversation}
 
-Return only the persona profile as plain text.
+Return ONLY the summary.
 """
 
     response = client.chat.completions.create(
-        model="openai/gpt-oss-120b",
+        model=MODEL,
         messages=[
             {
                 "role": "user",
                 "content": prompt
             }
         ],
+        reasoning_effort="low",
         include_reasoning=False,
-        temperature=0.3,
+        temperature=0.2,
+        max_completion_tokens=600
+    )
+
+    return get_content(response)
+
+
+def generate_final_persona_profile(summaries: str):
+    prompt = f"""
+Create a final persona profile from the following summaries of one person.
+
+The profile will be given to another AI so it can reproduce this person's
+communication style accurately.
+
+Include:
+
+- Communication style
+- Tone
+- Language and Hinglish usage
+- Frequently used expressions
+- Interests
+- Preferences
+- Personality traits demonstrated in conversation
+- Emotional communication patterns
+- Typical response style
+- Recurring facts, memories and viewpoints
+
+Rules:
+
+- Use only evidence from the summaries.
+- Do not invent facts.
+- Do not exaggerate.
+- Do not repeat information unnecessarily.
+- Prioritize patterns that occur repeatedly.
+- Keep the profile concise but informative.
+
+SUMMARIES:
+
+{summaries}
+
+Return ONLY the final persona profile.
+"""
+
+    response = client.chat.completions.create(
+        model=MODEL,
+        messages=[
+            {
+                "role": "user",
+                "content": prompt
+            }
+        ],
+        reasoning_effort="low",
+        include_reasoning=False,
+        temperature=0.2,
         max_completion_tokens=700
     )
 
-    return response.choices[0].message.content or ""
-  
+    return get_content(response)

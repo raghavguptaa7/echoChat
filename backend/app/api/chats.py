@@ -1,31 +1,45 @@
+import io
+import zipfile
+
 from fastapi import APIRouter, UploadFile, File, HTTPException
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
-from app.models import Chat, Message,Persona
+from app.models import Chat, Message, Persona, ChatSession
 from app.parser import parse_chat
 from app.schemas.chat import MessageResponse
+
 from app.services.chat_service import save_chat
 from app.services.chunk_service import create_chunks
 from app.services.search_service import search_chunks
 from app.services.llm_service import generate_response
 from app.services.persona_service import create_persona
-from app.services.session_service import create_session
-from app.models import Chat, Message, Persona, ChatSession
 from app.services.session_service import (
     create_session,
     add_message,
     get_session_messages
 )
-router = APIRouter(prefix="/api/chats", tags=["Chats"])
 
 
-@router.get("/{chat_id}/messages", response_model=list[MessageResponse])
+router = APIRouter(
+    prefix="/api/chats",
+    tags=["Chats"]
+)
+
+
+@router.get(
+    "/{chat_id}/messages",
+    response_model=list[MessageResponse]
+)
 def get_chat_messages(chat_id: int):
     db: Session = SessionLocal()
 
     try:
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
 
         if not chat:
             raise HTTPException(
@@ -40,21 +54,49 @@ def get_chat_messages(chat_id: int):
 
 
 @router.post("/upload")
-async def upload_chat(file: UploadFile = File(...)):
-    if not file.filename.endswith(".txt"):
+async def upload_chat(
+    file: UploadFile = File(...)
+):
+    if not file.filename.lower().endswith(".zip"):
         raise HTTPException(
             status_code=400,
-            detail="Only .txt chat files are supported"
+            detail="Only WhatsApp .zip files are supported"
         )
 
     content = await file.read()
 
     try:
-        text = content.decode("utf-8")
+        zip_file = zipfile.ZipFile(
+            io.BytesIO(content)
+        )
+    except zipfile.BadZipFile:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid ZIP file"
+        )
+
+    chat_file = None
+
+    for filename in zip_file.namelist():
+        if filename.lower().endswith(".txt"):
+            chat_file = filename
+            break
+
+    if not chat_file:
+        raise HTTPException(
+            status_code=400,
+            detail="WhatsApp chat text file not found in ZIP"
+        )
+
+    try:
+        text = zip_file.read(
+            chat_file
+        ).decode("utf-8")
+
     except UnicodeDecodeError:
         raise HTTPException(
             status_code=400,
-            detail="Unable to decode the chat file"
+            detail="Unable to decode WhatsApp chat file"
         )
 
     messages = parse_chat(text)
@@ -62,7 +104,7 @@ async def upload_chat(file: UploadFile = File(...)):
     if not messages:
         raise HTTPException(
             status_code=400,
-            detail="No valid messages found in the chat"
+            detail="No valid messages found in WhatsApp chat"
         )
 
     db: Session = SessionLocal()
@@ -76,7 +118,9 @@ async def upload_chat(file: UploadFile = File(...)):
 
         db_messages = (
             db.query(Message)
-            .filter(Message.chat_id == chat.id)
+            .filter(
+                Message.chat_id == chat.id
+            )
             .order_by(Message.id)
             .all()
         )
@@ -89,7 +133,8 @@ async def upload_chat(file: UploadFile = File(...)):
 
         return {
             "chat_id": chat.id,
-            "filename": chat.filename,
+            "filename": file.filename,
+            "chat_file": chat_file,
             "message_count": len(messages),
             "chunk_count": len(chunks)
         }
@@ -99,12 +144,13 @@ async def upload_chat(file: UploadFile = File(...)):
 
         raise HTTPException(
             status_code=500,
-            detail="Failed to save chat"
+            detail="Failed to save WhatsApp chat"
         )
 
     finally:
         db.close()
-        
+
+
 @router.get("/{chat_id}/search")
 def search_chat(
     chat_id: int,
@@ -114,7 +160,11 @@ def search_chat(
     db: Session = SessionLocal()
 
     try:
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
 
         if not chat:
             raise HTTPException(
@@ -122,18 +172,36 @@ def search_chat(
                 detail="Chat not found"
             )
 
+        persona = (
+            db.query(Persona)
+            .filter(
+                Persona.chat_id == chat_id
+            )
+            .first()
+        )
+
+        target_person = None
+
+        if persona:
+            target_person = persona.target_person
+
         results = search_chunks(
             db,
             chat_id,
             query,
-            limit
+            limit,
+            target_person=target_person
         )
 
         return [
             {
                 "chunk_id": result["chunk"].id,
                 "chunk_index": result["chunk"].chunk_index,
-                "similarity": round(result["similarity"], 4),
+                "similarity": round(
+                    result["similarity"],
+                    4
+                ),
+                "target_score": result["target_score"],
                 "content": result["chunk"].content
             }
             for result in results
@@ -141,6 +209,123 @@ def search_chat(
 
     finally:
         db.close()
+
+
+@router.get("/{chat_id}/participants")
+def get_participants(
+    chat_id: int
+):
+    db: Session = SessionLocal()
+
+    try:
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        participants = (
+            db.query(Message.sender)
+            .filter(
+                Message.chat_id == chat_id
+            )
+            .distinct()
+            .all()
+        )
+
+        return {
+            "chat_id": chat_id,
+            "participants": [
+                participant[0]
+                for participant in participants
+            ]
+        }
+
+    finally:
+        db.close()
+
+
+@router.post("/{chat_id}/persona")
+def generate_chat_persona(
+    chat_id: int,
+    target_person: str
+):
+    db: Session = SessionLocal()
+
+    try:
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        try:
+            persona = create_persona(
+                db,
+                chat_id,
+                target_person
+            )
+
+        except ValueError as error:
+            raise HTTPException(
+                status_code=400,
+                detail=str(error)
+            )
+
+        return {
+            "chat_id": chat_id,
+            "target_person": persona.target_person,
+            "profile": persona.profile
+        }
+
+    finally:
+        db.close()
+
+
+@router.post("/{chat_id}/sessions")
+def create_chat_session(
+    chat_id: int
+):
+    db: Session = SessionLocal()
+
+    try:
+        chat = (
+            db.query(Chat)
+            .filter(Chat.id == chat_id)
+            .first()
+        )
+
+        if not chat:
+            raise HTTPException(
+                status_code=404,
+                detail="Chat not found"
+            )
+
+        session = create_session(
+            db,
+            chat_id
+        )
+
+        return {
+            "session_id": session.id,
+            "chat_id": chat_id
+        }
+
+    finally:
+        db.close()
+
 
 @router.post("/{chat_id}/ask")
 def ask_chat(
@@ -179,23 +364,28 @@ def ask_chat(
                 detail="Session not found"
             )
 
-        results = search_chunks(
-            db,
-            chat_id,
-            query,
-            limit
-        )
-
         persona = (
             db.query(Persona)
-            .filter(Persona.chat_id == chat_id)
+            .filter(
+                Persona.chat_id == chat_id
+            )
             .first()
         )
 
         persona_profile = ""
+        target_person = None
 
         if persona:
             persona_profile = persona.profile
+            target_person = persona.target_person
+
+        results = search_chunks(
+            db,
+            chat_id,
+            query,
+            limit,
+            target_person=target_person
+        )
 
         context = "\n\n".join(
             result["chunk"].content
@@ -203,10 +393,10 @@ def ask_chat(
         )
 
         previous_messages = get_session_messages(
-        db,
-        session_id,
-        limit=10
-       )
+            db,
+            session_id,
+            limit=10
+        )
 
         conversation_history = "\n".join(
             f"{message.role}: {message.content}"
@@ -237,72 +427,18 @@ def ask_chat(
         return {
             "answer": answer,
             "session_id": session_id,
+            "target_person": target_person,
             "sources": [
                 {
                     "chunk_id": result["chunk"].id,
                     "similarity": round(
                         result["similarity"],
                         4
-                    )
+                    ),
+                    "target_score": result["target_score"]
                 }
                 for result in results
             ]
-        }
-
-    finally:
-        db.close()   
-        
-@router.post("/{chat_id}/persona")
-def generate_chat_persona(chat_id: int):
-    db: Session = SessionLocal()
-
-    try:
-        chat = db.query(Chat).filter(Chat.id == chat_id).first()
-
-        if not chat:
-            raise HTTPException(
-                status_code=404,
-                detail="Chat not found"
-            )
-
-        persona = create_persona(
-            db,
-            chat_id
-        )
-
-        return {
-            "chat_id": chat_id,
-            "profile": persona.profile
-        }
-
-    finally:
-        db.close()    
-        
-@router.post("/{chat_id}/sessions")
-def create_chat_session(chat_id: int):
-    db: Session = SessionLocal()
-
-    try:
-        chat = (
-            db.query(Chat)
-            .filter(Chat.id == chat_id)
-            .first()
-        )
-
-        if not chat:
-            raise HTTPException(
-                status_code=404,
-                detail="Chat not found"
-            )
-
-        session = create_session(
-            db,
-            chat_id
-        )
-
-        return {
-            "session_id": session.id,
-            "chat_id": chat_id
         }
 
     finally:

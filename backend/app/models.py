@@ -69,13 +69,23 @@ class Persona(Base):
     __tablename__ = "personas"
 
     id = Column(Integer, primary_key=True, index=True)
+
     chat_id = Column(
         Integer,
         ForeignKey("chats.id"),
         nullable=False,
         unique=True
     )
-    profile = Column(Text, nullable=False)
+
+    target_person = Column(
+        String,
+        nullable=False
+    )
+
+    profile = Column(
+        Text,
+        nullable=False
+    )
 
     chat = relationship(
         "Chat",
